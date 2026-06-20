@@ -212,6 +212,21 @@ jobs:
 
           cd ./common
           patch -p1 < 50_add_susfs_in_gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}.patch || true
+
+          # 修复 mm/memory.c 中失败的 SUSFS patch hunk (Hunk #1 FAILED at 75)
+          # 该 hunk 本应在 #include <linux/vmalloc.h> 后添加 #include <linux/susfs_def.h>
+          if [ -f mm/memory.c.rej ]; then
+            echo "检测到 mm/memory.c 有失败的 hunk，正在手动修复..."
+            if ! grep -q "susfs_def" mm/memory.c; then
+              echo "添加 #include <linux/susfs_def.h> 到 mm/memory.c..."
+              # 在 #include <linux/vmalloc.h> 之后添加 susfs 头文件包含
+              sed -i '/#include <linux\/vmalloc.h>/a\
+              #ifdef CONFIG_KSU_SUSFS_SUS_MAP\
+              #include <linux/susfs_def.h>\
+              #endif /* CONFIG_KSU_SUSFS_SUS_MAP */' mm/memory.c
+            fi
+            rm -f mm/memory.c.rej
+          fi
           echo "完成"
 
       - name: Apply Hide Stuff Patches
